@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OTA Performance Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <style>
+    :root {
+      --airbnb: #FF5A5F;
+      --booking: #4A7FCC;
+      --expedia: #00AF87;
+      --tripcom: #7C3AED;
+      --bg: #F7F8FA;
+      --card: #FFFFFF;
+      --border: #E5E8EF;
+      --text: #1A1D23;
+      --muted: #6B7280;
+      --radius: 12px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); }
+
+    header {
+      background: linear-gradient(135deg, #0F1923 0%, #1C2B3A 100%);
+      color: #fff; padding: 32px 40px 28px;
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+    }
+    .header-left h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+    .header-left p { margin-top: 6px; font-size: 14px; color: rgba(255,255,255,0.55); }
+    .header-pills { display: flex; gap: 10px; flex-wrap: wrap; }
+    .pill { display: flex; align-items: center; gap: 7px; padding: 6px 14px; border-radius: 999px; background: rgba(255,255,255,0.08); font-size: 13px; font-weight: 600; color: #fff; border: 1.5px solid rgba(255,255,255,0.15); }
+    .pill-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .header-reports { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; border-left: 1px solid rgba(255,255,255,0.12); padding-left: 28px; min-width: 210px; }
+    .header-reports-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-bottom: 2px; align-self: flex-start; }
+    .report-link { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.85); text-decoration: none; transition: color 0.15s; white-space: nowrap; }
+    .report-link:hover { color: #fff; }
+    .report-link-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .report-link-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.55); margin-left: 2px; }
+
+    main { max-width: 1400px; margin: 0 auto; padding: 32px 24px 48px; }
+
+    .section-divider { margin: 32px 0 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .section-divider h2 { font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); padding-bottom: 10px; border-bottom: 2px solid var(--border); flex: 1; }
+
+    /* Toggle */
+    .view-toggle { display: flex; gap: 4px; background: #E5E8EF; border-radius: 8px; padding: 3px; }
+    .toggle-btn {
+      padding: 6px 18px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600;
+      cursor: pointer; background: transparent; color: var(--muted); transition: all 0.15s;
+    }
+    .toggle-btn.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+    /* KPI */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .kpi-section-title { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .kpi-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; position: relative; overflow: hidden; }
+    .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+    .kpi-card.airbnb::before  { background: var(--airbnb); }
+    .kpi-card.booking::before { background: var(--booking); }
+    .kpi-card.expedia::before { background: var(--expedia); }
+    .kpi-card.tripcom::before { background: var(--tripcom); }
+    .kpi-label { font-size: 12px; color: var(--muted); font-weight: 500; margin-bottom: 6px; }
+    .kpi-value { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+    .kpi-card.airbnb  .kpi-value { color: var(--airbnb); }
+    .kpi-card.booking .kpi-value { color: var(--booking); }
+    .kpi-card.expedia .kpi-value { color: var(--expedia); }
+    .kpi-card.tripcom .kpi-value { color: var(--tripcom); }
+    .kpi-sub { font-size: 12px; color: var(--muted); margin-top: 5px; }
+    .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px; margin-left: 4px; }
+    .badge.up   { background: #D1FAE5; color: #065F46; }
+    .badge.down { background: #FEE2E2; color: #991B1B; }
+
+    /* Charts */
+    /* Main tabs */
+    .main-tabs { display: flex; gap: 2px; margin-bottom: 32px; border-bottom: 2px solid var(--border); }
+    .main-tab { padding: 10px 22px; border: none; background: none; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.15s; letter-spacing: 0.2px; }
+    .main-tab.active { color: var(--text); border-bottom-color: var(--text); }
+    .main-tab:hover:not(.active) { color: var(--text); background: var(--bg); }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* Competitor tab hero */
+    .co-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; padding: 24px 28px; border-radius: var(--radius); margin-bottom: 28px; border: 1px solid; }
+    .co-hero h2 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    .co-hero .ticker { font-size: 13px; font-weight: 600; opacity: 0.55; margin-left: 8px; }
+    .co-hero p { font-size: 13px; opacity: 0.7; margin-top: 4px; }
+    .co-hero.airbnb-hero  { background: rgba(255,90,95,0.06);  border-color: rgba(255,90,95,0.2);  color: var(--text); }
+    .co-hero.booking-hero { background: rgba(74,127,204,0.06); border-color: rgba(74,127,204,0.2); color: var(--text); }
+    .co-hero.expedia-hero { background: rgba(0,175,135,0.06);  border-color: rgba(0,175,135,0.2);  color: var(--text); }
+    .co-hero.tripcom-hero { background: rgba(124,58,237,0.06); border-color: rgba(124,58,237,0.2); color: var(--text); }
+    .co-kpis { display: flex; gap: 16px; flex-wrap: wrap; }
+    .co-kpi { text-align: right; }
+    .co-kpi-val { font-size: 22px; font-weight: 700; }
+    .co-kpi-lbl { font-size: 11px; color: var(--muted); font-weight: 500; margin-top: 2px; }
+
+    .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 20px; }
+    .charts-grid.single { grid-template-columns: 1fr; }
+    .charts-grid.three-col { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 1100px) { .charts-grid.three-col { grid-template-columns: 1fr; } }
+    @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+    .chart-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+    .chart-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .chart-card .chart-desc { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+    .chart-wrapper { position: relative; height: 280px; }
+    .chart-wrapper.tall { height: 340px; }
+
+    /* Tables */
+    .table-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-top: 16px; }
+    .table-header { padding: 20px 24px 14px; border-bottom: 1px solid var(--border); }
+    .table-header h3 { font-size: 15px; font-weight: 700; }
+    .table-header p { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: #F9FAFB; padding: 10px 16px; text-align: right; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th:first-child { text-align: left; min-width: 200px; }
+    td { padding: 11px 16px; border-bottom: 1px solid #F3F4F6; vertical-align: middle; text-align: right; white-space: nowrap; }
+    td:first-child { text-align: left; }
+    tr:last-child td { border-bottom: none; }
+    .company-tag { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; }
+    .company-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .num { font-variant-numeric: tabular-nums; font-weight: 600; }
+    .mc { color: var(--muted); font-size: 12px; }
+    .gp { font-weight: 600; font-size: 12px; color: #059669; }
+
+    /* Table section tabs */
+    .table-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+    .table-tab { padding: 7px 18px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; background: var(--card); color: var(--muted); transition: all 0.15s; }
+    .table-tab.active { background: var(--text); color: #fff; border-color: var(--text); }
+    .table-view { display: none; }
+    .table-view.active { display: block; }
+
+    /* Footnote */
+    .footnotes { margin-top: 28px; padding: 16px 20px; background: #F9FAFB; border: 1px solid var(--border); border-radius: 8px; }
+    .footnotes p { font-size: 11px; color: var(--muted); line-height: 1.8; }
+    .footnotes strong { color: var(--text); }
+
+    .legend-note { margin-top: 12px; padding: 10px 14px; background: #F9FAFB; border: 1px solid var(--border); border-radius: 8px; font-size: 11px; color: var(--muted); line-height: 1.7; }
+    .legend-note strong { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>OTA Performance Dashboard</h1>
+    <p>Airbnb · Booking Holdings · Expedia Group · Trip.com Group &nbsp;|&nbsp; 2022 – Q1 2026</p>
+  </div>
+  <div class="header-pills">
+    <span class="pill"><span class="pill-dot" style="background:#FF5A5F"></span>Airbnb (ABNB)</span>
+    <span class="pill"><span class="pill-dot" style="background:#4A7FCC"></span>Booking Holdings (BKNG)</span>
+    <span class="pill"><span class="pill-dot" style="background:#00AF87"></span>Expedia Group (EXPE)</span>
+    <span class="pill"><span class="pill-dot" style="background:#7C3AED"></span>Trip.com Group (TCOM)</span>
+  </div>
+  <div class="header-reports">
+    <div class="header-reports-label">Latest Earnings</div>
+    <a class="report-link" href="https://investors.airbnb.com/events-and-presentations/default.aspx" target="_blank">
+      <span class="report-link-dot" style="background:#FF5A5F"></span>Airbnb <span class="report-link-badge">Q4 '25</span>
+    </a>
+    <a class="report-link" href="https://ir.bookingholdings.com/financials/quarterly-results/default.aspx" target="_blank">
+      <span class="report-link-dot" style="background:#4A7FCC"></span>Booking Holdings <span class="report-link-badge">Q1 '26</span>
+    </a>
+    <a class="report-link" href="https://www.expediagroup.com/investors/financial-information/quarterly-results/default.aspx" target="_blank">
+      <span class="report-link-dot" style="background:#00AF87"></span>Expedia Group <span class="report-link-badge">Q4 '25</span>
+    </a>
+    <a class="report-link" href="https://ir.trip.com/news-releases/news-release-details/tripcom-group-reports-fourth-quarter-and-full-year-2024-results" target="_blank">
+      <span class="report-link-dot" style="background:#7C3AED"></span>Trip.com Group <span class="report-link-badge">Q4 '25</span>
+    </a>
+  </div>
+</header>
+
+<main>
+
+  <div class="main-tabs">
+    <button class="main-tab active" onclick="switchTab('overview',this)">Overview</button>
+    <button class="main-tab" onclick="switchTab('airbnb',this)"><span style="color:#FF5A5F">●</span> Airbnb</button>
+    <button class="main-tab" onclick="switchTab('booking',this)"><span style="color:#4A7FCC">●</span> Booking Holdings</button>
+    <button class="main-tab" onclick="switchTab('expedia',this)"><span style="color:#00AF87">●</span> Expedia Group</button>
+    <button class="main-tab" onclick="switchTab('tripcom',this)"><span style="color:#7C3AED">●</span> Trip.com Group</button>
+  </div>
+
+  <div id="tab-overview" class="tab-pane active">
+
+  <!-- CHARTS -->
+  <div class="section-divider">
+    <h2>Performance Trends</h2>
+    <div class="view-toggle">
+      <button class="toggle-btn active" id="btnQ" onclick="setView('q')">Quarterly</button>
+      <button class="toggle-btn" id="btnA" onclick="setView('a')">Annual</button>
+    </div>
+  </div>
+
+  <div class="charts-grid three-col">
+    <div class="chart-card"><h3>Nights Booked — Y/Y Growth</h3><p class="chart-desc">Year-over-year growth in nights/room nights booked (%); gaps = not available</p><div class="chart-wrapper"><canvas id="cNightsGrowth"></canvas></div></div>
+    <div class="chart-card"><h3>Gross Bookings / GBV — Y/Y Growth</h3><p class="chart-desc">Year-over-year growth in gross bookings value (%); 2024 quarters derived from annual growth rates</p><div class="chart-wrapper"><canvas id="cGBVGrowth"></canvas></div></div>
+    <div class="chart-card"><h3>Revenue — Y/Y Growth</h3><p class="chart-desc">Year-over-year revenue growth rate (%)</p><div class="chart-wrapper"><canvas id="cGrowth"></canvas></div></div>
+  </div>
+  <div class="charts-grid three-col">
+    <div class="chart-card"><h3>Revenue</h3><p class="chart-desc">Total net revenue, USD billions</p><div class="chart-wrapper"><canvas id="cRevenue"></canvas></div></div>
+    <div class="chart-card"><h3>Gross Bookings / GBV</h3><p class="chart-desc">Total value of bookings; Trip.com not disclosed</p><div class="chart-wrapper"><canvas id="cGrossBook"></canvas></div></div>
+    <div class="chart-card"><h3>Nights / Room Nights Booked</h3><p class="chart-desc">Millions; Airbnb includes Experiences; Trip.com not disclosed</p><div class="chart-wrapper"><canvas id="cNights"></canvas></div></div>
+  </div>
+  <div class="charts-grid three-col">
+    <div class="chart-card"><h3>Adjusted EBITDA</h3><p class="chart-desc">USD billions; gaps = data not available</p><div class="chart-wrapper"><canvas id="cEbitda"></canvas></div></div>
+    <div class="chart-card"><h3>Adj EBITDA Margin</h3><p class="chart-desc">Adjusted EBITDA as % of revenue; gaps = data not available</p><div class="chart-wrapper"><canvas id="cMargin"></canvas></div></div>
+    <div class="chart-card"><h3>Net Income</h3><p class="chart-desc">GAAP net income, USD billions; limited quarterly disclosure</p><div class="chart-wrapper"><canvas id="cNetIncome"></canvas></div></div>
+  </div>
+  <div class="charts-grid three-col">
+    <div class="chart-card"><h3>Revenue Share — Q4 2025</h3><p class="chart-desc">Share of combined reported net revenue across all four companies</p><div class="chart-wrapper"><canvas id="cRevenueShare"></canvas></div></div>
+    <div class="chart-card"><h3>Nights Share — Q4 2025</h3><p class="chart-desc">Share of combined nights/room nights booked (Trip.com excluded — not disclosed)</p><div class="chart-wrapper"><canvas id="cNightsShare"></canvas></div></div>
+    <div class="chart-card"><h3>Gross Bookings Share — Q4 2025</h3><p class="chart-desc">Share of combined reported gross bookings (Trip.com excluded — not disclosed)</p><div class="chart-wrapper"><canvas id="cShare"></canvas></div></div>
+  </div>
+
+  <!-- INTERNATIONAL GROWTH -->
+  <div class="section-divider"><h2>International Momentum</h2></div>
+  <div class="charts-grid single">
+    <div class="chart-card">
+      <h3>International Growth Proxies by Company</h3>
+      <p class="chart-desc">Each line uses the best available international metric for that company — definitions differ (see note)</p>
+      <div class="chart-wrapper tall"><canvas id="cIntl"></canvas></div>
+      <div class="legend-note">
+        <strong>Trip.com (TCOM):</strong> Overall reservations on the Trip.com international OTA platform, Y/Y % &nbsp;·&nbsp;
+        <strong>Expedia (EXPE):</strong> B2B gross bookings growth, Y/Y % — B2B is predominantly international &nbsp;·&nbsp;
+        <strong>Booking (BKNG):</strong> Total room nights booked Y/Y % — ~80% of business is non-US &nbsp;·&nbsp;
+        <strong>Airbnb (ABNB):</strong> Non-North America nights Y/Y % — limited disclosure; only Q1 2025 available in quarterly view
+      </div>
+    </div>
+  </div>
+
+  <!-- REGIONAL OVERVIEW -->
+  <div class="section-divider"><h2>Regional Overview</h2></div>
+  <div class="charts-grid three-col">
+    <div class="chart-card"><h3>Revenue Mix by Region — 2025</h3><p class="chart-desc">Each bar shows how a company's revenue is distributed across US+Canada · LatAm · EMEA · APAC (%)</p><div class="chart-wrapper"><canvas id="cRegMix"></canvas></div></div>
+    <div class="chart-card"><h3>International Revenue Share Trend</h3><p class="chart-desc">% of revenue from non-home-market regions annually; Trip.com internationalising fastest</p><div class="chart-wrapper"><canvas id="cIntlShare"></canvas></div></div>
+    <div class="chart-card"><h3>Revenue by Region — 2025</h3><p class="chart-desc">USD billions; Booking dominates EMEA, Expedia leads US+Canada, Trip.com leads APAC</p><div class="chart-wrapper"><canvas id="cRegByCompany"></canvas></div></div>
+  </div>
+  <div class="charts-grid three-col">
+    <div class="chart-card"><h3>Gross Bookings by Region — 2025</h3><p class="chart-desc">USD billions; EMEA largest GBV pool driven by Booking's dominance; APAC second-largest</p><div class="chart-wrapper"><canvas id="cRegGBVByCompany"></canvas></div></div>
+    <div class="chart-card"><h3>Nights Booked by Region — 2025</h3><p class="chart-desc">Millions; EMEA commands most nights; APAC nights concentrated in Trip.com's China base</p><div class="chart-wrapper"><canvas id="cRegNightsByCompany"></canvas></div></div>
+    <div class="chart-card"><h3>Regional Revenue Growth — 2024→2025</h3><p class="chart-desc">Y/Y % growth per company per region; APAC and LatAm outpacing mature markets</p><div class="chart-wrapper"><canvas id="cRegRevGrowth"></canvas></div></div>
+  </div>
+  <div class="charts-grid three-col">
+    <div class="chart-card"><h3>Regional GBV Growth — 2024→2025</h3><p class="chart-desc">Y/Y % GBV growth per company per region; APAC continues to outperform globally</p><div class="chart-wrapper"><canvas id="cRegGBVGrowth"></canvas></div></div>
+    <div class="chart-card"><h3>Regional Nights Growth — 2024→2025</h3><p class="chart-desc">Y/Y % nights growth per company per region; APAC nights accelerating across platforms</p><div class="chart-wrapper"><canvas id="cRegNightsGrowth"></canvas></div></div>
+    <div class="chart-card"><h3>Regional Growth Trend — Composite Avg</h3><p class="chart-desc">Average Y/Y revenue growth across OTAs by region; APAC consistently fastest-growing</p><div class="chart-wrapper"><canvas id="cRegTrend"></canvas></div></div>
+  </div>
+
+  <!-- KPI SNAPSHOT -->
+  <div class="section-divider"><h2>Latest Quarter Snapshot — Q4 2025 &nbsp;<span style="font-weight:400;text-transform:none;letter-spacing:0">(Booking: Q1 2026 also available)</span></h2></div>
+
+  <div style="margin-bottom:24px">
+    <div class="kpi-section-title">Revenue</div>
+    <div class="kpi-grid">
+      <div class="kpi-card airbnb"><div class="kpi-label">Airbnb</div><div class="kpi-value">$2.80B</div><div class="kpi-sub"><span class="badge up">+12% Y/Y</span></div></div>
+      <div class="kpi-card booking"><div class="kpi-label">Booking Holdings (Q1 '26)</div><div class="kpi-value">$5.53B</div><div class="kpi-sub"><span class="badge up">+16% Y/Y</span></div></div>
+      <div class="kpi-card expedia"><div class="kpi-label">Expedia Group</div><div class="kpi-value">$3.55B</div><div class="kpi-sub"><span class="badge up">+11% Y/Y</span></div></div>
+      <div class="kpi-card tripcom"><div class="kpi-label">Trip.com Group</div><div class="kpi-value">$2.21B</div><div class="kpi-sub"><span class="badge up">+21% Y/Y</span></div></div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:24px">
+    <div class="kpi-section-title">Gross Bookings / GBV</div>
+    <div class="kpi-grid">
+      <div class="kpi-card airbnb"><div class="kpi-label">Airbnb GBV</div><div class="kpi-value">$20.4B</div><div class="kpi-sub"><span class="badge up">+16% Y/Y</span></div></div>
+      <div class="kpi-card booking"><div class="kpi-label">Booking Holdings</div><div class="kpi-value">$43.0B</div><div class="kpi-sub"><span class="badge up">+16% Y/Y</span></div></div>
+      <div class="kpi-card expedia"><div class="kpi-label">Expedia Group</div><div class="kpi-value">$27.0B</div><div class="kpi-sub"><span class="badge up">+11% Y/Y</span></div></div>
+      <div class="kpi-card tripcom"><div class="kpi-label">Trip.com Group</div><div class="kpi-value" style="font-size:18px;color:var(--muted);">Not disclosed</div><div class="kpi-sub">Not reported as a metric</div></div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:24px">
+    <div class="kpi-section-title">Adjusted EBITDA</div>
+    <div class="kpi-grid">
+      <div class="kpi-card airbnb"><div class="kpi-label">Airbnb</div><div class="kpi-value">$786M</div><div class="kpi-sub"><span class="badge up">+3% Y/Y</span></div></div>
+      <div class="kpi-card booking"><div class="kpi-label">Booking Holdings (Q1 '26)</div><div class="kpi-value">$1.29B</div><div class="kpi-sub"><span class="badge up">+19% Y/Y</span></div></div>
+      <div class="kpi-card expedia"><div class="kpi-label">Expedia Group</div><div class="kpi-value" style="font-size:18px;color:var(--muted);">N/A</div><div class="kpi-sub">Not in available source</div></div>
+      <div class="kpi-card tripcom"><div class="kpi-label">Trip.com Group</div><div class="kpi-value" style="font-size:18px;color:var(--muted);">N/A</div><div class="kpi-sub">Not in available source</div></div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:36px">
+    <div class="kpi-section-title">Nights / Room Nights Booked</div>
+    <div class="kpi-grid">
+      <div class="kpi-card airbnb"><div class="kpi-label">Airbnb — Nights &amp; Experiences</div><div class="kpi-value">122.1M</div><div class="kpi-sub"><span class="badge up">+10% Y/Y</span></div></div>
+      <div class="kpi-card booking"><div class="kpi-label">Booking Holdings (Q1 '26)</div><div class="kpi-value">338M</div><div class="kpi-sub"><span class="badge up">+6% Y/Y</span></div></div>
+      <div class="kpi-card expedia"><div class="kpi-label">Expedia Group</div><div class="kpi-value">94M</div><div class="kpi-sub"><span class="badge up">+9% Y/Y</span></div></div>
+      <div class="kpi-card tripcom"><div class="kpi-label">Trip.com Group</div><div class="kpi-value" style="font-size:18px;color:var(--muted);">Not disclosed</div><div class="kpi-sub">Not reported in equivalent format</div></div>
+    </div>
+  </div>
+
+  <!-- TABLES -->
+  <div class="section-divider"><h2>Data Tables</h2></div>
+
+  <div class="table-tabs">
+    <button class="table-tab active" onclick="showTable('quarterly')">Quarterly</button>
+    <button class="table-tab" onclick="showTable('annual')">Annual Summary</button>
+  </div>
+
+  <!-- QUARTERLY TABLES -->
+  <div id="tbl-quarterly" class="table-view active">
+
+    <div class="table-card">
+      <div class="table-header"><h3>Revenue — 2024</h3><p>USD billions</p></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Company</th><th>Q1 2024</th><th>Q2 2024</th><th>Q3 2024</th><th>Q4 2024</th><th>FY 2024</th></tr></thead>
+        <tbody>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#FF5A5F"></span>Airbnb</span></td><td class="num">$2.14B</td><td class="num">$2.75B</td><td class="num">$3.73B</td><td class="num">$2.48B</td><td class="num">$11.10B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#4A7FCC"></span>Booking Holdings</span></td><td class="num">$4.40B</td><td class="num">$5.86B</td><td class="num">$8.00B</td><td class="num">$5.50B</td><td class="num">$23.76B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#00AF87"></span>Expedia Group</span></td><td class="num">$2.90B</td><td class="num">$3.60B</td><td class="num">$4.10B</td><td class="num">$3.18B</td><td class="num">$13.78B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#7C3AED"></span>Trip.com Group</span></td><td class="num">$1.60B</td><td class="num">$1.80B</td><td class="num">$2.30B</td><td class="num">$1.70B</td><td class="num">$7.40B</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header"><h3>Revenue — 2025 &amp; Q1 2026</h3><p>USD billions; — = not yet reported</p></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Company</th><th>Q1 2025</th><th>Q2 2025</th><th>Q3 2025</th><th>Q4 2025</th><th>Q1 2026</th><th>FY 2025</th></tr></thead>
+        <tbody>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#FF5A5F"></span>Airbnb</span></td><td class="num">$2.27B</td><td class="num">$3.10B</td><td class="num">$4.10B</td><td class="num">$2.80B</td><td class="mc">—</td><td class="num">$12.27B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#4A7FCC"></span>Booking Holdings</span></td><td class="num">$4.80B</td><td class="num">$6.80B</td><td class="num">$9.00B</td><td class="num">$6.30B</td><td class="num">$5.53B</td><td class="num">$26.90B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#00AF87"></span>Expedia Group</span></td><td class="num">$3.00B</td><td class="num">$3.82B</td><td class="num">$4.47B</td><td class="num">$3.55B</td><td class="mc">—</td><td class="num">$14.84B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#7C3AED"></span>Trip.com Group</span></td><td class="num">$1.90B</td><td class="num">$2.10B</td><td class="num">$2.60B</td><td class="num">$2.21B</td><td class="mc">—</td><td class="num">$8.81B</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header"><h3>Gross Bookings / GBV</h3><p>USD billions; Trip.com does not disclose gross bookings</p></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Company</th><th>Q1 '24</th><th>Q2 '24</th><th>Q3 '24</th><th>Q4 '24</th><th>Q1 '25</th><th>Q2 '25</th><th>Q3 '25</th><th>Q4 '25</th></tr></thead>
+        <tbody>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#FF5A5F"></span>Airbnb GBV</span></td><td class="num">~$23.1B*</td><td class="num">$21.2B</td><td class="num">$20.1B</td><td class="num">$17.6B</td><td class="num">$24.5B</td><td class="num">$23.5B</td><td class="num">$22.9B</td><td class="num">$20.4B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#4A7FCC"></span>Booking Holdings</span></td><td class="num">$43.5B</td><td class="num">$41.4B</td><td class="num">$43.4B</td><td class="num">$37.2B</td><td class="num">$46.7B</td><td class="num">$46.8B</td><td class="num">$50.0B</td><td class="num">$43.0B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#00AF87"></span>Expedia Group</span></td><td class="num">$30.2B</td><td class="num">$28.8B</td><td class="num">$27.5B</td><td class="num">$24.4B</td><td class="num">$31.5B</td><td class="num">$30.2B</td><td class="num">$30.8B</td><td class="num">$27.0B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#7C3AED"></span>Trip.com Group</span></td><td class="mc" colspan="8">Not disclosed as a separate metric</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header"><h3>Adjusted EBITDA</h3><p>USD billions; — = not available in source</p></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Company</th><th>Q1 '24</th><th>Q2 '24</th><th>Q3 '24</th><th>Q4 '24</th><th>Q1 '25</th><th>Q2 '25</th><th>Q3 '25</th><th>Q4 '25</th><th>Q1 '26</th></tr></thead>
+        <tbody>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#FF5A5F"></span>Airbnb</span></td><td class="num">$0.42B</td><td class="num">$0.89B</td><td class="num">$2.00B</td><td class="num">$0.77B</td><td class="mc">—</td><td class="num">$1.00B</td><td class="num">$2.00B+</td><td class="num">$0.79B</td><td class="mc">—</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#4A7FCC"></span>Booking Holdings</span></td><td class="num">$0.90B</td><td class="mc">—</td><td class="num">$3.70B</td><td class="num">$1.80B</td><td class="num">$1.09B</td><td class="mc">—</td><td class="num">$4.20B</td><td class="num">$2.20B</td><td class="num">$1.29B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#00AF87"></span>Expedia Group</span></td><td class="num">$0.26B</td><td class="num">$0.79B</td><td class="mc">—</td><td class="mc">—</td><td class="num">$0.30B</td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#7C3AED"></span>Trip.com Group</span></td><td class="num">$0.56B</td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td><td class="num">$0.59B</td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header"><h3>Nights / Room Nights Booked — Quarterly</h3><p>Millions; Airbnb includes Experiences; Trip.com not disclosed</p></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Company</th><th>Q1 '24</th><th>Q2 '24</th><th>Q3 '24</th><th>Q4 '24</th><th>Q1 '25</th><th>Q2 '25</th><th>Q3 '25</th><th>Q4 '25</th><th>Q1 '26</th></tr></thead>
+        <tbody>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#FF5A5F"></span>Airbnb</span></td><td class="num">133.0M</td><td class="num">125.1M</td><td class="num">122.8M</td><td class="num">111.0M</td><td class="num">143.1M</td><td class="num">134.0M</td><td class="num">134.0M</td><td class="num">122.1M</td><td class="mc">—</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#4A7FCC"></span>Booking Holdings</span></td><td class="num">298M</td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td><td class="num">319M</td><td class="num">309M</td><td class="num">323M</td><td class="num">285M</td><td class="num">338M</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#00AF87"></span>Expedia Group</span></td><td class="num">101.9M</td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td><td class="num">108.0M</td><td class="mc">—</td><td class="mc">—</td><td class="num">94.0M</td><td class="mc">—</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#7C3AED"></span>Trip.com Group</span></td><td class="mc" colspan="9">Not reported in equivalent format</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header"><h3>Nights Booked — Y/Y Growth</h3><p>% vs same quarter prior year; gaps = prior-year data not available</p></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Company</th><th>Q1 '24</th><th>Q2 '24</th><th>Q3 '24</th><th>Q4 '24</th><th>Q1 '25</th><th>Q2 '25</th><th>Q3 '25</th><th>Q4 '25</th><th>Q1 '26</th></tr></thead>
+        <tbody>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#FF5A5F"></span>Airbnb</span></td><td class="num gp">+10%</td><td class="num gp">+9%</td><td class="num gp">+9%</td><td class="num gp">+12%</td><td class="num gp">+8%</td><td class="num gp">+7%</td><td class="num gp">+9%</td><td class="num gp">+10%</td><td class="mc">—</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#4A7FCC"></span>Booking Holdings</span></td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td><td class="num gp">+7%</td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td><td class="num gp">+6%</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#00AF87"></span>Expedia Group</span></td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td><td class="num gp">+6%</td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#7C3AED"></span>Trip.com Group</span></td><td class="mc" colspan="9">Not reported in equivalent format</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header"><h3>International Growth Proxies — Quarterly</h3><p>Y/Y % — metric definitions differ by company</p></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Company / Metric</th><th>Q1 '24</th><th>Q2 '24</th><th>Q3 '24</th><th>Q4 '24</th><th>Q1 '25</th><th>Q2 '25</th><th>Q3 '25</th></tr></thead>
+        <tbody>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#7C3AED"></span>Trip.com — Intl OTA Platform</span></td><td class="num gp">+80%</td><td class="num gp">+70%</td><td class="num gp">+60%</td><td class="num gp">+70%</td><td class="num gp">+60%</td><td class="num gp">+60%</td><td class="num gp">+60%</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#00AF87"></span>Expedia — B2B Gross Bookings</span></td><td class="num gp">+25%</td><td class="num gp">+22%</td><td class="num gp">+19%</td><td class="num gp">+24%</td><td class="num gp">+14%</td><td class="num gp">+17%</td><td class="num gp">+26%</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#4A7FCC"></span>Booking — Room Nights (~80% non-US)</span></td><td class="num gp">+9%</td><td class="num gp">+7%</td><td class="num gp">+8%</td><td class="num gp">+13%</td><td class="num gp">+7%</td><td class="num gp">+8%</td><td class="num gp">+8%</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#FF5A5F"></span>Airbnb — Non-North America Nights</span></td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td><td class="mc">—</td><td class="num gp">+11%</td><td class="mc">—</td><td class="mc">—</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+  </div><!-- end quarterly -->
+
+  <!-- ANNUAL TABLES -->
+  <div id="tbl-annual" class="table-view">
+
+    <div class="table-card">
+      <div class="table-header"><h3>Revenue — Annual</h3><p>USD billions; FY figures</p></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Company</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th></tr></thead>
+        <tbody>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#FF5A5F"></span>Airbnb</span></td><td class="num">$8.40B</td><td class="num">$9.92B</td><td class="num">$11.10B</td><td class="num">$12.27B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#4A7FCC"></span>Booking Holdings</span></td><td class="num">$17.10B</td><td class="num">$21.40B</td><td class="num">$23.76B</td><td class="num">$26.90B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#00AF87"></span>Expedia Group</span></td><td class="num">$11.70B</td><td class="num">$12.88B</td><td class="num">$13.78B</td><td class="num">$14.84B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#7C3AED"></span>Trip.com Group</span></td><td class="num">$2.90B</td><td class="num">$6.27B</td><td class="num">$7.40B</td><td class="num">$8.81B</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header"><h3>Gross Bookings / GBV — Annual</h3><p>USD billions; Trip.com not disclosed</p></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Company</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th></tr></thead>
+        <tbody>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#FF5A5F"></span>Airbnb GBV</span></td><td class="num">$63.2B</td><td class="num">$73.3B</td><td class="num">$82.0B</td><td class="num">$91.3B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#4A7FCC"></span>Booking Holdings</span></td><td class="num">$121.3B</td><td class="num">$150.6B</td><td class="num">$166.0B</td><td class="num">$186.1B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#00AF87"></span>Expedia Group</span></td><td class="num">$95.0B</td><td class="num">$103.7B</td><td class="num">$111.0B</td><td class="num">$119.6B</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#7C3AED"></span>Trip.com Group</span></td><td class="mc" colspan="4">Not disclosed as a separate metric</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header"><h3>Y/Y Revenue Growth — Annual</h3><p>% vs prior year; 2022 comparison to 2021 omitted (COVID base distortion)</p></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Company</th><th>2023 vs 2022</th><th>2024 vs 2023</th><th>2025 vs 2024</th></tr></thead>
+        <tbody>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#FF5A5F"></span>Airbnb</span></td><td class="num gp">+18%</td><td class="num gp">+12%</td><td class="num gp">+11%</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#4A7FCC"></span>Booking Holdings</span></td><td class="num gp">+25%</td><td class="num gp">+11%</td><td class="num gp">+13%</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#00AF87"></span>Expedia Group</span></td><td class="num gp">+10%</td><td class="num gp">+7%</td><td class="num gp">+8%</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#7C3AED"></span>Trip.com Group</span></td><td class="num gp">+116%</td><td class="num gp">+18%</td><td class="num gp">+19%</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header"><h3>Nights / Room Nights Booked — Annual</h3><p>Millions; Airbnb includes Experiences</p></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Company</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th></tr></thead>
+        <tbody>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#FF5A5F"></span>Airbnb</span></td><td class="num">393.7M</td><td class="num">448.0M</td><td class="num">491.0M</td><td class="num">533.0M</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#4A7FCC"></span>Booking Holdings</span></td><td class="mc">—</td><td class="num">~1,000M</td><td class="num">~1,100M</td><td class="num">1,200M</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#00AF87"></span>Expedia Group</span></td><td class="mc">—</td><td class="mc">—</td><td class="num">~385M</td><td class="num">415M</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#7C3AED"></span>Trip.com Group</span></td><td class="mc" colspan="4">Not reported in equivalent format</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header"><h3>Nights Booked — Y/Y Growth — Annual</h3><p>% vs prior year; derived from reported full-year figures</p></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Company</th><th>2023 vs 2022</th><th>2024 vs 2023</th><th>2025 vs 2024</th></tr></thead>
+        <tbody>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#FF5A5F"></span>Airbnb</span></td><td class="num gp">+14%</td><td class="num gp">+10%</td><td class="num gp">+9%</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#4A7FCC"></span>Booking Holdings</span></td><td class="mc">—</td><td class="num gp">+10%</td><td class="num gp">+9%</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#00AF87"></span>Expedia Group</span></td><td class="mc">—</td><td class="mc">—</td><td class="num gp">+8%</td></tr>
+          <tr><td><span class="company-tag"><span class="company-dot" style="background:#7C3AED"></span>Trip.com Group</span></td><td class="mc" colspan="3">Not reported in equivalent format</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+  </div><!-- end annual -->
+
+  <div class="footnotes">
+    <p>
+      <strong>Sources:</strong> Airbnb Q1–Q4 2024 &amp; Q1–Q4 2025 shareholder letters; Booking Holdings Q1–Q4 2024, Q1–Q4 2025 &amp; Q1 2026 earnings releases; Expedia Group Q1–Q4 2024 &amp; Q1–Q4 2025 press releases; Trip.com Group Q1–Q4 2024 &amp; Q1–Q4 2025 earnings releases. All figures USD.<br>
+      <strong>* Airbnb Q1 2024 GBV:</strong> derived from FY 2024 reported figure (~$82B) minus Q2–Q4. &nbsp;
+      <strong>Trip.com currency:</strong> Converted from RMB at approximate period rates. &nbsp;
+      <strong>Expedia Q2/Q3 2025 revenue:</strong> Calculated from reported Y/Y growth rates. &nbsp;
+      <strong>Booking Q2 2025 gross bookings:</strong> Derived from Q2 2024 base × reported 13% Y/Y growth.<br>
+      <strong>Annual 2023 Booking room nights:</strong> ~1B per company reports; exact figure was "over 1 billion." &nbsp;
+      <strong>Expedia 2024 room nights:</strong> ~385M derived from 2025 FY (415M) at +8% growth. &nbsp;
+      <strong>Trip.com 2022 revenue:</strong> $2.9B (heavily suppressed by Chinese COVID restrictions; 2023 +116% reflects reopening). &nbsp;
+      <strong>Annual intl growth values</strong> in chart are averages of available quarterly data or full-year reported figures.<br>
+      <strong>Airbnb 2024 quarterly nights growth:</strong> derived by comparing Q1–Q4 2024 reported values against Q1–Q4 2023 figures from Airbnb's 2023 earnings disclosures (121.1M, 115.1M, 113.2M, 98.8M). &nbsp;
+      <strong>Booking/Expedia nights growth:</strong> only quarters where both current and prior-year values are available in source data are shown.<br>
+      Dashboard updated April 2026. Q1 2026 data available for Booking Holdings only.
+    </p>
+  </div>
+
+  </div><!-- /tab-overview -->
+
+  <!-- ═══════════════════════════════════════ AIRBNB TAB ══ -->
+  <div id="tab-airbnb" class="tab-pane">
+    <div class="co-hero airbnb-hero">
+      <div><h2>Airbnb <span class="ticker">ABNB</span></h2><p>Homes · Experiences · Long-term stays</p></div>
+      <div class="co-kpis">
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#FF5A5F">$2.80B</div><div class="co-kpi-lbl">Q4 '25 Revenue</div></div>
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#FF5A5F">$20.4B</div><div class="co-kpi-lbl">Q4 '25 GBV</div></div>
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#FF5A5F">122.1M</div><div class="co-kpi-lbl">Q4 '25 Nights</div></div>
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#FF5A5F">13.7%</div><div class="co-kpi-lbl">Q4 '25 Take Rate</div></div>
+      </div>
+    </div>
+    <div class="section-divider"><h2>Performance Deep-Dive</h2></div>
+    <div class="charts-grid three-col">
+      <div class="chart-card"><h3>Take Rate (Revenue / GBV)</h3><p class="chart-desc">Revenue as % of gross booking value — peaks in high-season quarters</p><div class="chart-wrapper"><canvas id="ab_takeRate"></canvas></div></div>
+      <div class="chart-card"><h3>Average Daily Rate (ADR)</h3><p class="chart-desc">USD per night; reflects pricing and mix across stay types</p><div class="chart-wrapper"><canvas id="ab_adr"></canvas></div></div>
+      <div class="chart-card"><h3>Revenue per Night Booked</h3><p class="chart-desc">Total revenue divided by nights booked — blended yield indicator</p><div class="chart-wrapper"><canvas id="ab_revPerNight"></canvas></div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Long-term Stays Mix (28+ nights)</h3><p class="chart-desc">Long-term stays as % of total nights booked — annual</p><div class="chart-wrapper"><canvas id="ab_longTerm"></canvas></div></div>
+      <div class="chart-card"><h3>GBV vs Revenue — Absolute</h3><p class="chart-desc">Gross booking value vs net revenue, USD billions</p><div class="chart-wrapper"><canvas id="ab_gbvRev"></canvas></div></div>
+    </div>
+  </div><!-- /tab-airbnb -->
+
+  <!-- ═══════════════════════════════════════ BOOKING TAB ══ -->
+  <div id="tab-booking" class="tab-pane">
+    <div class="co-hero booking-hero">
+      <div><h2>Booking Holdings <span class="ticker">BKNG</span></h2><p>Booking.com · Priceline · Agoda · Kayak · OpenTable · Rentalcars</p></div>
+      <div class="co-kpis">
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#4A7FCC">$5.53B</div><div class="co-kpi-lbl">Q1 '26 Revenue <span style="font-size:10px;color:#6B7280">(+16% Y/Y)</span></div></div>
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#4A7FCC">$53.8B</div><div class="co-kpi-lbl">Q1 '26 GBV <span style="font-size:10px;color:#6B7280">(+15% Y/Y)</span></div></div>
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#4A7FCC">338M</div><div class="co-kpi-lbl">Q1 '26 Room Nights <span style="font-size:10px;color:#6B7280">(+6% Y/Y)</span></div></div>
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#4A7FCC">$1.10B</div><div class="co-kpi-lbl">Q1 '26 Net Income <span style="font-size:10px;color:#6B7280">(+225% Y/Y)</span></div></div>
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#4A7FCC">$1.29B</div><div class="co-kpi-lbl">Q1 '26 Adj. EBITDA <span style="font-size:10px;color:#6B7280">(+19% Y/Y)</span></div></div>
+      </div>
+    </div>
+    <div class="section-divider"><h2>Revenue Mix by Type</h2></div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Revenue by Type — Stacked</h3><p class="chart-desc">Agency (commissions) · Merchant (transactional) · Advertising (Kayak, OpenTable); USD billions</p><div class="chart-wrapper"><canvas id="bk_revMix"></canvas></div></div>
+      <div class="chart-card"><h3>Revenue Mix Share (%)</h3><p class="chart-desc">Booking is actively shifting from agency to merchant model</p><div class="chart-wrapper"><canvas id="bk_revShare"></canvas></div></div>
+    </div>
+    <div class="section-divider"><h2>Subsidiary Breakdown — Estimated <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px">(Booking Holdings does not disclose brand-level financials; figures are analyst &amp; industry estimates)</span></h2></div>
+    <div class="charts-grid three-col">
+      <div class="chart-card"><h3>Room Nights by Brand — Quarterly</h3><p class="chart-desc">Millions; Booking.com dominates ~87%, Agoda ~10% (Asia-Pacific), Priceline ~3% (US)</p><div class="chart-wrapper"><canvas id="bk_nightsByBrand"></canvas></div></div>
+      <div class="chart-card"><h3>Gross Bookings by Brand — Annual</h3><p class="chart-desc">USD billions; estimated brand contribution to total GBV</p><div class="chart-wrapper"><canvas id="bk_gbvByBrand"></canvas></div></div>
+      <div class="chart-card"><h3>Brand Y/Y Growth — Estimated</h3><p class="chart-desc">Agoda outpacing Booking.com as Asia-Pacific travel recovery continues; Priceline flat</p><div class="chart-wrapper"><canvas id="bk_brandGrowth"></canvas></div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Brand Geographic Reach</h3><p class="chart-desc">Estimated share of room nights by primary geography — Booking.com (Europe), Agoda (APAC), Priceline (Americas)</p><div class="chart-wrapper"><canvas id="bk_brandGeo"></canvas></div></div>
+      <div class="chart-card"><h3>Nights Booked — All Reported Quarters</h3><p class="chart-desc">Total room nights across all brands, millions; gaps = not reported</p><div class="chart-wrapper"><canvas id="bk_allNights"></canvas></div></div>
+    </div>
+  </div><!-- /tab-booking -->
+
+  <!-- ═══════════════════════════════════════ EXPEDIA TAB ══ -->
+  <div id="tab-expedia" class="tab-pane">
+    <div class="co-hero expedia-hero">
+      <div><h2>Expedia Group <span class="ticker">EXPE</span></h2><p>Expedia.com · Vrbo · Hotels.com · Orbitz · Hotwire · trivago (61%) · Expedia Partner Solutions (B2B)</p></div>
+      <div class="co-kpis">
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#00AF87">$3.55B</div><div class="co-kpi-lbl">Q4 '25 Revenue</div></div>
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#00AF87">$27.0B</div><div class="co-kpi-lbl">Q4 '25 GBV</div></div>
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#00AF87">94M</div><div class="co-kpi-lbl">Q4 '25 Nights</div></div>
+      </div>
+    </div>
+    <div class="section-divider"><h2>B2C vs. B2B &amp; Brand Breakdown</h2></div>
+    <div class="charts-grid three-col">
+      <div class="chart-card"><h3>B2C vs. B2B Revenue</h3><p class="chart-desc">B2C: Expedia.com, Vrbo, Hotels.com, Orbitz · B2B: Expedia Partner Solutions; USD billions</p><div class="chart-wrapper"><canvas id="ex_b2cB2b"></canvas></div></div>
+      <div class="chart-card"><h3>Vrbo vs. Core Brand Nights</h3><p class="chart-desc">Annual nights booked split; Vrbo declined in 2024 vs. core Expedia brands recovering</p><div class="chart-wrapper"><canvas id="ex_vrboNights"></canvas></div></div>
+      <div class="chart-card"><h3>B2B Revenue Growth Y/Y</h3><p class="chart-desc">Expedia Partner Solutions has outpaced B2C growth; quarterly Y/Y %</p><div class="chart-wrapper"><canvas id="ex_b2bGrowth"></canvas></div></div>
+    </div>
+    <div class="section-divider"><h2>Brand-level GBV &amp; Revenue <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px">(Expedia does not report brand-level GBV; figures are estimates based on disclosed nights, take-rate assumptions &amp; analyst research)</span></h2></div>
+    <div class="charts-grid three-col">
+      <div class="chart-card"><h3>Gross Bookings by Brand — Annual</h3><p class="chart-desc">USD billions; Expedia.com+Hotels.com consolidating as Hotels.com sunsets; B2B growing fastest</p><div class="chart-wrapper"><canvas id="ex_gbvByBrand"></canvas></div></div>
+      <div class="chart-card"><h3>Revenue by Brand — Annual</h3><p class="chart-desc">USD billions; Vrbo lower take-rate (~9%) vs. Expedia.com (~13%)</p><div class="chart-wrapper"><canvas id="ex_revByBrand"></canvas></div></div>
+      <div class="chart-card"><h3>Vrbo vs. Core Nights Y/Y Growth</h3><p class="chart-desc">Vrbo nights declined in 2024 as short-term rental supply moderated; recovering in 2025</p><div class="chart-wrapper"><canvas id="ex_vrboGrowth"></canvas></div></div>
+    </div>
+    <div class="section-divider"><h2>Regional Breakdown <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px">(Expedia reports consolidated; regional splits estimated from 10-K geographic disclosures &amp; analyst research)</span></h2></div>
+    <div class="charts-grid three-col">
+      <div class="chart-card"><h3>Revenue by Region — Annual</h3><p class="chart-desc">USD billions; Expedia is Americas-heavy (~65%) vs. Booking's Europe dominance</p><div class="chart-wrapper"><canvas id="ex_revByRegion"></canvas></div></div>
+      <div class="chart-card"><h3>Gross Bookings by Region — Annual</h3><p class="chart-desc">USD billions; EMEA share growing as Expedia expands European hotel supply</p><div class="chart-wrapper"><canvas id="ex_gbvByRegion"></canvas></div></div>
+      <div class="chart-card"><h3>Nights by Region — Annual</h3><p class="chart-desc">Millions; APAC growing fastest from a smaller base</p><div class="chart-wrapper"><canvas id="ex_nightsByRegion"></canvas></div></div>
+    </div>
+    <div class="charts-grid three-col">
+      <div class="chart-card"><h3>Regional Revenue Growth Y/Y</h3><p class="chart-desc">EMEA accelerating in 2025 driven by European outbound recovery; LatAm emerging</p><div class="chart-wrapper"><canvas id="ex_regionalGrowth"></canvas></div></div>
+      <div class="chart-card"><h3>GBV Growth by Region Y/Y</h3><p class="chart-desc">APAC showed outsized GBV growth 2023→2024 as China outbound re-opened; stabilising in 2025</p><div class="chart-wrapper"><canvas id="ex_gbvRegGrowth"></canvas></div></div>
+      <div class="chart-card"><h3>Revenue Share by Region (%)</h3><p class="chart-desc">US+Canada share gradually declining as EMEA and APAC grow faster</p><div class="chart-wrapper"><canvas id="ex_regionShare"></canvas></div></div>
+    </div>
+  </div><!-- /tab-expedia -->
+
+  <!-- ═══════════════════════════════════════ TRIPCOM TAB ══ -->
+  <div id="tab-tripcom" class="tab-pane">
+    <div class="co-hero tripcom-hero">
+      <div><h2>Trip.com Group <span class="ticker">TCOM</span></h2><p>Trip.com (International) · Ctrip (China domestic) · Skyscanner · Qunar · Tongcheng Travel (stake)</p></div>
+      <div class="co-kpis">
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#7C3AED">$2.21B</div><div class="co-kpi-lbl">Q4 '25 Revenue</div></div>
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#7C3AED">+21%</div><div class="co-kpi-lbl">Q4 '25 Y/Y Growth</div></div>
+        <div class="co-kpi"><div class="co-kpi-val" style="color:#7C3AED">$8.81B</div><div class="co-kpi-lbl">FY 2025 Revenue</div></div>
+      </div>
+    </div>
+    <div class="section-divider"><h2>Revenue by Product Segment</h2></div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Revenue by Product — Stacked</h3><p class="chart-desc">Accommodation · Transportation (air/rail) · Packaged tours · Corporate &amp; other; USD billions</p><div class="chart-wrapper"><canvas id="tc_segments"></canvas></div></div>
+      <div class="chart-card"><h3>Domestic vs. International Revenue</h3><p class="chart-desc">China domestic (Ctrip) vs. international (Trip.com brand + Skyscanner); annual, USD billions</p><div class="chart-wrapper"><canvas id="tc_intlDom"></canvas></div></div>
+    </div>
+  </div><!-- /tab-tripcom -->
+
+</main>
+
+<script>
+  // ─────────────────────────────────────────────
+  // DATA
+  // ─────────────────────────────────────────────
+  const QQ = ["Q1 '24","Q2 '24","Q3 '24","Q4 '24","Q1 '25","Q2 '25","Q3 '25","Q4 '25","Q1 '26"];
+  const AQ = ['2022','2023','2024','2025'];
+
+  const C = {
+    airbnb:  { color:'#FF5A5F', light:'rgba(255,90,95,0.15)',  label:'Airbnb' },
+    booking: { color:'#4A7FCC', light:'rgba(74,127,204,0.15)', label:'Booking Holdings' },
+    expedia: { color:'#00AF87', light:'rgba(0,175,135,0.15)',  label:'Expedia Group' },
+    tripcom: { color:'#7C3AED', light:'rgba(124,58,237,0.15)',  label:'Trip.com Group' },
+  };
+
+  const QDATA = {
+    revenue:     { airbnb:[2.14,2.75,3.73,2.48,2.27,3.10,4.10,2.80,null], booking:[4.40,5.86,8.00,5.50,4.80,6.80,9.00,6.30,5.53], expedia:[2.90,3.60,4.10,3.18,3.00,3.82,4.47,3.55,null], tripcom:[1.60,1.80,2.30,1.70,1.90,2.10,2.60,2.21,null] },
+    grossBook:   { airbnb:[23.1,21.2,20.1,17.6,24.5,23.5,22.9,20.4,null], booking:[43.5,41.4,43.4,37.2,46.7,46.8,50.0,43.0,53.8], expedia:[30.2,28.8,27.5,24.4,31.5,30.2,30.8,27.0,null], tripcom:[null,null,null,null,null,null,null,null,null] },
+    yoyGrowth:   { airbnb:[18,11,10,12,6,13,10,12,null], booking:[17,7,9,14,8,16,13,16,16], expedia:[8,6,3,10,3,6,9,11,null], tripcom:[29,14,16,23,16,16,16,21,null] },
+    ebitda:      { airbnb:[0.424,0.894,2.0,0.765,null,1.0,2.0,0.786,null], booking:[0.898,null,3.7,1.8,1.09,null,4.2,2.2,1.29], expedia:[0.255,0.786,null,null,0.296,null,null,null,null], tripcom:[0.560,null,null,null,0.586,null,null,null,null] },
+    nights:      { airbnb:[133.0,125.1,122.8,111.0,143.1,134.0,134.0,122.1,null], booking:[298,null,null,null,319,309,323,285,338], expedia:[101.9,null,null,null,108.0,null,null,94.0,null], tripcom:[null,null,null,null,null,null,null,null,null] },
+    netIncome:   { airbnb:[0.264,0.555,1.4,0.461,0.154,null,null,null,null], booking:[null,1.5,2.5,null,0.34,null,null,null,1.10], expedia:[null,null,0.684,null,null,null,null,null,null], tripcom:[null,null,null,0.30,null,null,null,null,null] },
+    intlGrowth:  { tripcom:[80,70,60,70,60,60,60,null,null], expedia:[25,22,19,24,14,17,26,null,null], booking:[9,7,8,13,7,8,8,9,6], airbnb:[null,null,null,null,11,null,null,null,null] },
+    nightsGrowth:    { airbnb:[10,9,9,12,8,7,9,10,null], booking:[null,null,null,null,7,null,null,null,6], expedia:[null,null,null,null,6,null,null,null,null], tripcom:[null,null,null,null,null,null,null,null,null] },
+    grossBookGrowth: { airbnb:[12,12,12,12,6,11,14,16,null], booking:[10,10,10,10,7,13,15,16,15], expedia:[7,7,7,7,4,5,12,11,null], tripcom:[null,null,null,null,null,null,null,null,null] },
+  };
+
+  const ADATA = {
+    revenue:     { airbnb:[8.40,9.92,11.10,12.27], booking:[17.10,21.40,23.76,26.90], expedia:[11.70,12.88,13.78,14.84], tripcom:[2.90,6.27,7.40,8.81] },
+    grossBook:   { airbnb:[63.2,73.3,82.0,91.3], booking:[121.3,150.6,166.0,186.1], expedia:[95.0,103.7,111.0,119.6], tripcom:[null,null,null,null] },
+    yoyGrowth:   { airbnb:[null,18,12,11], booking:[null,25,11,13], expedia:[null,10,7,8], tripcom:[null,116,18,19] },
+    ebitda:      { airbnb:[null,null,4.08,null], booking:[null,null,8.00,9.90], expedia:[null,null,null,null], tripcom:[null,null,null,null] },
+    nights:      { airbnb:[393.7,448.0,491.0,533.0], booking:[null,1000,1100,1200], expedia:[null,null,385,415], tripcom:[null,null,null,null] },
+    netIncome:   { airbnb:[null,null,2.68,null], booking:[null,4.30,null,null], expedia:[null,null,null,null], tripcom:[null,null,2.40,null] },
+    intlGrowth:  { tripcom:[null,null,70,60], expedia:[null,null,23,18], booking:[null,17,9,8], airbnb:[null,null,null,null] },
+    nightsGrowth:    { airbnb:[null,14,10,9], booking:[null,null,10,9], expedia:[null,null,null,8], tripcom:[null,null,null,null] },
+    grossBookGrowth: { airbnb:[null,16,12,11], booking:[null,24,10,12], expedia:[null,9,7,8], tripcom:[null,null,null,null] },
+  };
+
+  // ─────────────────────────────────────────────
+  // HELPERS
+  // ─────────────────────────────────────────────
+  function margin(ebitda, rev) {
+    return ebitda.map((e, i) => (e != null && rev[i] != null) ? +(e / rev[i] * 100).toFixed(1) : null);
+  }
+
+  const base = {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode:'index', intersect:false },
+    plugins: {
+      legend: { position:'top', labels:{ boxWidth:12, boxHeight:12, padding:16, font:{ size:12 } } },
+      tooltip: { backgroundColor:'#1A1D23', titleColor:'#fff', bodyColor:'rgba(255,255,255,0.8)', padding:12, cornerRadius:8 },
+    },
+    scales: {
+      x: { grid:{ display:false }, ticks:{ font:{ size:11 } } },
+      y: { grid:{ color:'#F3F4F6' }, ticks:{ font:{ size:11 } } },
+    },
+  };
+
+  function lineDs(key, data, label) {
+    return { label: label || C[key].label, data, borderColor: C[key].color, backgroundColor: C[key].light, fill:false, tension:0.4, pointBackgroundColor:C[key].color, pointRadius:5, pointHoverRadius:7, borderWidth:2.5, spanGaps:false };
+  }
+  function barDs(key, data, label) {
+    return { label: label || C[key].label, data, backgroundColor: C[key].light, borderColor: C[key].color, borderWidth:2, borderRadius:4 };
+  }
+  function tooltipFmt(prefix, suffix, dec) {
+    return { callbacks:{ label: ctx => ctx.parsed.y != null ? ` ${ctx.dataset.label}: ${prefix}${ctx.parsed.y.toFixed(dec)}${suffix}` : ` ${ctx.dataset.label}: N/A` } };
+  }
+  function yFmt(cb) { return { ...base, scales:{ ...base.scales, y:{ ...base.scales.y, ticks:{ callback: cb } } } }; }
+  function dollarB() { return yFmt(v=>`$${v}B`); }
+  function pctFmt()  { return yFmt(v=>`${v}%`); }
+  function milFmt()  { return yFmt(v=>`${v}M`); }
+
+  // ─────────────────────────────────────────────
+  // CHART REGISTRY
+  // ─────────────────────────────────────────────
+  const registry = []; // { chart, key, type }
+
+  function mkLine(id, key, tipFmt, yopts) {
+    const d = QDATA[key];
+    const opts = { ...yopts, plugins:{ ...yopts.plugins, tooltip:{ ...yopts.plugins.tooltip, ...tipFmt } } };
+    const ch = new Chart(document.getElementById(id), {
+      type: 'line',
+      data: { labels: QQ, datasets: [lineDs('airbnb',d.airbnb), lineDs('booking',d.booking), lineDs('expedia',d.expedia), lineDs('tripcom',d.tripcom)] },
+      options: opts,
+    });
+    registry.push({ chart:ch, key, isLine:true });
+    return ch;
+  }
+
+  function mkBar(id, key, tipFmt, yopts) {
+    const d = QDATA[key];
+    const opts = { ...yopts, plugins:{ ...yopts.plugins, tooltip:{ ...yopts.plugins.tooltip, ...tipFmt } } };
+    const ch = new Chart(document.getElementById(id), {
+      type: 'bar',
+      data: { labels: QQ, datasets: [barDs('airbnb',d.airbnb), barDs('booking',d.booking), barDs('expedia',d.expedia), barDs('tripcom',d.tripcom)] },
+      options: opts,
+    });
+    registry.push({ chart:ch, key, isLine:false });
+    return ch;
+  }
+
+  // ─────────────────────────────────────────────
+  // BUILD CHARTS
+  // ─────────────────────────────────────────────
+  mkLine('cRevenue',   'revenue',   tooltipFmt('$','B',2), dollarB());
+  mkLine('cGrossBook', 'grossBook', tooltipFmt('$','B',1), dollarB());
+  mkBar ('cGrowth',    'yoyGrowth', tooltipFmt('','%',0),  pctFmt());
+  mkLine('cEbitda',    'ebitda',    tooltipFmt('$','B',2), dollarB());
+  mkBar ('cNights',       'nights',       tooltipFmt('','M',1),  milFmt());
+  mkBar ('cNightsGrowth',  'nightsGrowth',    tooltipFmt('','%',0), pctFmt());
+  mkBar ('cGBVGrowth',    'grossBookGrowth', tooltipFmt('','%',0), pctFmt());
+  mkBar ('cNetIncome',    'netIncome',    tooltipFmt('$','B',2), dollarB());
+
+  // Margin chart (special: computed from ratio)
+  const marginOpts = { ...dollarB(), plugins:{ ...dollarB().plugins, tooltip:{ ...dollarB().plugins.tooltip, ...tooltipFmt('','%',1) } }, scales:{ ...base.scales, y:{ ...base.scales.y, ticks:{ callback: v=>`${v}%` } } } };
+  const cMargin = new Chart(document.getElementById('cMargin'), {
+    type: 'line',
+    data: { labels: QQ, datasets: [
+      lineDs('airbnb',  margin(QDATA.ebitda.airbnb,  QDATA.revenue.airbnb)),
+      lineDs('booking', margin(QDATA.ebitda.booking, QDATA.revenue.booking)),
+      lineDs('expedia', margin(QDATA.ebitda.expedia, QDATA.revenue.expedia)),
+      lineDs('tripcom', margin(QDATA.ebitda.tripcom, QDATA.revenue.tripcom)),
+    ]},
+    options: marginOpts,
+  });
+  // Note: margin chart is not in registry — updated manually in setView
+
+  // Donut helper
+  function mkDonut(id, labels, values, colors, fmtVal) {
+    const total = values.reduce((a,b)=>a+b,0);
+    new Chart(document.getElementById(id), {
+      type:'doughnut',
+      data:{ labels, datasets:[{ data:values.map(v=>+(v/total*100).toFixed(1)), backgroundColor:colors.map(c=>c+'D9'), borderColor:colors, borderWidth:2, hoverOffset:8 }] },
+      options:{ responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{ position:'bottom', labels:{ boxWidth:12, padding:16, font:{ size:11 } } }, tooltip:{ backgroundColor:'#1A1D23', callbacks:{ label: ctx=>` ${ctx.label}: ${ctx.parsed}%  (${fmtVal(values[ctx.dataIndex])})` } } } },
+    });
+  }
+
+  // Revenue share — Q4 2025 (all 4 companies)
+  mkDonut('cRevenueShare',
+    ['Airbnb','Booking Holdings','Expedia Group','Trip.com Group'],
+    [2.80, 6.30, 3.55, 2.21],
+    ['#FF5A5F','#4A7FCC','#00AF87','#7C3AED'],
+    v=>`$${v.toFixed(2)}B`
+  );
+
+  // Nights share — Q4 2025 (Trip.com excluded)
+  mkDonut('cNightsShare',
+    ['Airbnb','Booking Holdings','Expedia Group'],
+    [122.1, 285, 94],
+    ['#FF5A5F','#4A7FCC','#00AF87'],
+    v=>`${v}M`
+  );
+
+  // GBV share — Q4 2025 (Trip.com excluded)
+  mkDonut('cShare',
+    ['Airbnb','Booking Holdings','Expedia Group'],
+    [20.4, 43.0, 27.0],
+    ['#FF5A5F','#4A7FCC','#00AF87'],
+    v=>`$${v}B`
+  );
+
+  // International growth chart
+  const intlOpts = { ...pctFmt(), plugins:{ ...pctFmt().plugins, tooltip:{ ...pctFmt().plugins.tooltip, ...tooltipFmt('','%',0) } }, scales:{ ...base.scales, y:{ ...base.scales.y, suggestedMin:0, ticks:{ callback: v=>`${v}%` } } } };
+  const cIntl = new Chart(document.getElementById('cIntl'), {
+    type:'line',
+    data:{ labels:QQ, datasets:[
+      lineDs('tripcom', QDATA.intlGrowth.tripcom, 'Trip.com — Intl OTA Platform Bookings'),
+      lineDs('expedia', QDATA.intlGrowth.expedia, 'Expedia — B2B Gross Bookings'),
+      lineDs('booking', QDATA.intlGrowth.booking, 'Booking — Room Nights (~80% non-US)'),
+      lineDs('airbnb',  QDATA.intlGrowth.airbnb,  'Airbnb — Non-North America Nights'),
+    ]},
+    options: intlOpts,
+  });
+
+  // ─────────────────────────────────────────────
+  // REGIONAL OVERVIEW CHARTS (static, annual)
+  // ─────────────────────────────────────────────
+  const regColors = { usca:'#3B82F6', latam:'#06B6D4', emea:'#F59E0B', apac:'#EF4444' };
+
+  // 1. Regional mix per company — horizontal stacked bar
+  new Chart(document.getElementById('cRegMix'), {
+    type: 'bar',
+    plugins: [ChartDataLabels],
+    data: {
+      labels: ['Airbnb','Booking Holdings','Expedia Group','Trip.com Group'],
+      datasets: [
+        { label:'US+Canada', data:[50,10,60, 6], backgroundColor:regColors.usca +'CC', borderColor:regColors.usca,  borderWidth:1 },
+        { label:'LatAm',     data:[ 5, 4, 5, 4], backgroundColor:regColors.latam+'CC', borderColor:regColors.latam, borderWidth:1 },
+        { label:'EMEA',      data:[30,60,24,15], backgroundColor:regColors.emea +'CC', borderColor:regColors.emea,  borderWidth:1 },
+        { label:'APAC',      data:[15,26,11,75], backgroundColor:regColors.apac +'CC', borderColor:regColors.apac,  borderWidth:1 },
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      scales: {
+        x: { stacked:true, max:100, grid:{ color:'#F3F4F6' }, ticks:{ font:{size:11}, callback:v=>`${v}%` } },
+        y: { stacked:true, grid:{ display:false }, ticks:{ font:{size:11} } }
+      },
+      plugins: {
+        legend: { position:'top', labels:{ boxWidth:12, padding:14, font:{size:11} } },
+        tooltip: { backgroundColor:'#1A1D23', callbacks:{ label: ctx=>` ${ctx.dataset.label}: ${ctx.parsed.x}%` } },
+        datalabels: {
+          display: ctx => {
+            const contributing = ctx.chart.data.datasets.filter(d=>(d.data[ctx.dataIndex]??0)>0).length;
+            return contributing >= 2 && ctx.dataset.data[ctx.dataIndex] >= 8;
+          },
+          formatter: v => `${v}%`,
+          color: '#fff', font:{ size:10, weight:'700' }, anchor:'center', align:'center'
+        }
+      }
+    }
+  });
+
+  // 2. International share trend — line
+  new Chart(document.getElementById('cIntlShare'), {
+    type: 'line',
+    data: {
+      labels: AQ,
+      datasets: [
+        { label:'Airbnb (Non-NA %)',         data:[43,44,45,46], borderColor:C.airbnb.color,  backgroundColor:C.airbnb.light,  fill:false, tension:0.4, pointBackgroundColor:C.airbnb.color,  pointRadius:5, borderWidth:2.5, spanGaps:false },
+        { label:'Booking (Non-Americas %)',  data:[85,86,86,87], borderColor:C.booking.color, backgroundColor:C.booking.light, fill:false, tension:0.4, pointBackgroundColor:C.booking.color, pointRadius:5, borderWidth:2.5, spanGaps:false },
+        { label:'Expedia (Non-Americas %)',  data:[35,35,35,35], borderColor:C.expedia.color, backgroundColor:C.expedia.light, fill:false, tension:0.4, pointBackgroundColor:C.expedia.color, pointRadius:5, borderWidth:2.5, spanGaps:false },
+        { label:'Trip.com (International %)',data:[30,42,45,47], borderColor:C.tripcom.color, backgroundColor:C.tripcom.light, fill:false, tension:0.4, pointBackgroundColor:C.tripcom.color, pointRadius:5, borderWidth:2.5, spanGaps:false },
+      ]
+    },
+    options: { ...pctFmt(), plugins:{ ...pctFmt().plugins, tooltip:{ ...pctFmt().plugins.tooltip, callbacks:{ label: ctx=>` ${ctx.dataset.label}: ${ctx.parsed.y}%` } } }, scales:{ ...base.scales, y:{ ...base.scales.y, ticks:{ callback:v=>`${v}%` } } } }
+  });
+
+  // 3. Revenue by region across companies — grouped bar
+  new Chart(document.getElementById('cRegByCompany'), {
+    type: 'bar',
+    data: {
+      labels: ['US+Canada','LatAm','EMEA','APAC'],
+      datasets: [
+        { label:'Airbnb',          data:[6.1, 0.6,  3.7, 1.8], backgroundColor:C.airbnb.light,  borderColor:C.airbnb.color,  borderWidth:2, borderRadius:3 },
+        { label:'Booking Holdings',data:[2.7, 1.1, 16.1, 7.0], backgroundColor:C.booking.light, borderColor:C.booking.color, borderWidth:2, borderRadius:3 },
+        { label:'Expedia Group',   data:[8.9, 0.7,  3.6, 1.6], backgroundColor:C.expedia.light, borderColor:C.expedia.color, borderWidth:2, borderRadius:3 },
+        { label:'Trip.com Group',  data:[0.5, 0.4,  1.3, 6.6], backgroundColor:C.tripcom.light, borderColor:C.tripcom.color, borderWidth:2, borderRadius:3 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      scales: {
+        x: { grid:{ display:false }, ticks:{ font:{size:11} } },
+        y: { grid:{ color:'#F3F4F6' }, ticks:{ font:{size:11}, callback:v=>`$${v}B` } }
+      },
+      plugins: {
+        legend: { position:'top', labels:{ boxWidth:12, padding:14, font:{size:11} } },
+        tooltip: { backgroundColor:'#1A1D23', callbacks:{ label: ctx=>` ${ctx.dataset.label}: $${ctx.parsed.y.toFixed(1)}B` } }
+      }
+    }
+  });
+
+  // 4. GBV by region across companies — grouped bar
+  new Chart(document.getElementById('cRegGBVByCompany'), {
+    type: 'bar',
+    data: {
+      labels: ['US+Canada','LatAm','EMEA','APAC'],
+      datasets: [
+        { label:'Airbnb',          data:[28, 4, 22, 10], backgroundColor:C.airbnb.light,  borderColor:C.airbnb.color,  borderWidth:2, borderRadius:3 },
+        { label:'Booking Holdings',data:[18, 7,107, 46], backgroundColor:C.booking.light, borderColor:C.booking.color, borderWidth:2, borderRadius:3 },
+        { label:'Expedia Group',   data:[59, 5, 38, 18], backgroundColor:C.expedia.light, borderColor:C.expedia.color, borderWidth:2, borderRadius:3 },
+        { label:'Trip.com Group',  data:[ 3, 2,  9, 54], backgroundColor:C.tripcom.light, borderColor:C.tripcom.color, borderWidth:2, borderRadius:3 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{grid:{color:'#F3F4F6'},ticks:{font:{size:11},callback:v=>`$${v}B`}}
+      },
+      plugins:{
+        legend:{position:'top',labels:{boxWidth:12,padding:14,font:{size:11}}},
+        tooltip:{backgroundColor:'#1A1D23',callbacks:{label:ctx=>` ${ctx.dataset.label}: $${ctx.parsed.y}B`}}
+      }
+    }
+  });
+
+  // 5. Nights by region across companies — grouped bar
+  new Chart(document.getElementById('cRegNightsByCompany'), {
+    type: 'bar',
+    data: {
+      labels: ['US+Canada','LatAm','EMEA','APAC'],
+      datasets: [
+        { label:'Airbnb',          data:[195, 20, 120,  58], backgroundColor:C.airbnb.light,  borderColor:C.airbnb.color,  borderWidth:2, borderRadius:3 },
+        { label:'Booking Holdings',data:[ 30, 30, 750, 300], backgroundColor:C.booking.light, borderColor:C.booking.color, borderWidth:2, borderRadius:3 },
+        { label:'Expedia Group',   data:[201, 11, 150,  53], backgroundColor:C.expedia.light, borderColor:C.expedia.color, borderWidth:2, borderRadius:3 },
+        { label:'Trip.com Group',  data:[  4,  4,  13, 420], backgroundColor:C.tripcom.light, borderColor:C.tripcom.color, borderWidth:2, borderRadius:3 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{grid:{color:'#F3F4F6'},ticks:{font:{size:11},callback:v=>`${v}M`}}
+      },
+      plugins:{
+        legend:{position:'top',labels:{boxWidth:12,padding:14,font:{size:11}}},
+        tooltip:{backgroundColor:'#1A1D23',callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.parsed.y}M`}}
+      }
+    }
+  });
+
+  // 6. Revenue growth by region per company (2024→2025) — grouped bar
+  new Chart(document.getElementById('cRegRevGrowth'), {
+    type: 'bar',
+    data: {
+      labels: ['US+Canada','LatAm','EMEA','APAC'],
+      datasets: [
+        { label:'Airbnb',          data:[7,  11, 10,  9], backgroundColor:C.airbnb.light,  borderColor:C.airbnb.color,  borderWidth:2, borderRadius:3 },
+        { label:'Booking Holdings',data:[11, 12,  9, 14], backgroundColor:C.booking.light, borderColor:C.booking.color, borderWidth:2, borderRadius:3 },
+        { label:'Expedia Group',   data:[7,   7,  9,  7], backgroundColor:C.expedia.light, borderColor:C.expedia.color, borderWidth:2, borderRadius:3 },
+        { label:'Trip.com Group',  data:[null,null,18,15], backgroundColor:C.tripcom.light, borderColor:C.tripcom.color, borderWidth:2, borderRadius:3 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{grid:{color:'#F3F4F6'},ticks:{font:{size:11},callback:v=>`${v}%`}}
+      },
+      plugins:{
+        legend:{position:'top',labels:{boxWidth:12,padding:14,font:{size:11}}},
+        tooltip:{backgroundColor:'#1A1D23',callbacks:{label:ctx=>ctx.parsed.y!=null?` ${ctx.dataset.label}: ${ctx.parsed.y}%`:null}}
+      }
+    }
+  });
+
+  // 7. GBV growth by region per company (2024→2025) — grouped bar
+  new Chart(document.getElementById('cRegGBVGrowth'), {
+    type: 'bar',
+    data: {
+      labels: ['US+Canada','LatAm','EMEA','APAC'],
+      datasets: [
+        { label:'Airbnb',          data:[5,  10,  8,  8], backgroundColor:C.airbnb.light,  borderColor:C.airbnb.color,  borderWidth:2, borderRadius:3 },
+        { label:'Booking Holdings',data:[9,  11,  9, 14], backgroundColor:C.booking.light, borderColor:C.booking.color, borderWidth:2, borderRadius:3 },
+        { label:'Expedia Group',   data:[7,   7,  9,  6], backgroundColor:C.expedia.light, borderColor:C.expedia.color, borderWidth:2, borderRadius:3 },
+        { label:'Trip.com Group',  data:[null,null,15,13], backgroundColor:C.tripcom.light, borderColor:C.tripcom.color, borderWidth:2, borderRadius:3 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{grid:{color:'#F3F4F6'},ticks:{font:{size:11},callback:v=>`${v}%`}}
+      },
+      plugins:{
+        legend:{position:'top',labels:{boxWidth:12,padding:14,font:{size:11}}},
+        tooltip:{backgroundColor:'#1A1D23',callbacks:{label:ctx=>ctx.parsed.y!=null?` ${ctx.dataset.label}: ${ctx.parsed.y}%`:null}}
+      }
+    }
+  });
+
+  // 8. Nights growth by region per company (2024→2025) — grouped bar
+  new Chart(document.getElementById('cRegNightsGrowth'), {
+    type: 'bar',
+    data: {
+      labels: ['US+Canada','LatAm','EMEA','APAC'],
+      datasets: [
+        { label:'Airbnb',          data:[5,  10,  8,  9], backgroundColor:C.airbnb.light,  borderColor:C.airbnb.color,  borderWidth:2, borderRadius:3 },
+        { label:'Booking Holdings',data:[7,  10,  8, 12], backgroundColor:C.booking.light, borderColor:C.booking.color, borderWidth:2, borderRadius:3 },
+        { label:'Expedia Group',   data:[6,   6,  7,  6], backgroundColor:C.expedia.light, borderColor:C.expedia.color, borderWidth:2, borderRadius:3 },
+        { label:'Trip.com Group',  data:[null,null,12,14], backgroundColor:C.tripcom.light, borderColor:C.tripcom.color, borderWidth:2, borderRadius:3 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{grid:{color:'#F3F4F6'},ticks:{font:{size:11},callback:v=>`${v}%`}}
+      },
+      plugins:{
+        legend:{position:'top',labels:{boxWidth:12,padding:14,font:{size:11}}},
+        tooltip:{backgroundColor:'#1A1D23',callbacks:{label:ctx=>ctx.parsed.y!=null?` ${ctx.dataset.label}: ${ctx.parsed.y}%`:null}}
+      }
+    }
+  });
+
+  // 9. Regional growth trend — composite average (line)
+  simpleLine('cRegTrend', ['2022→2023','2023→2024','2024→2025'],
+    [ds('US+Canada',[10, 7, 8], regColors.usca),
+     ds('LatAm',    [15, 6, 9], regColors.latam),
+     ds('EMEA',     [12, 8,10], regColors.emea),
+     ds('APAC',     [15,15,12], regColors.apac)],
+    v=>`${v}%`);
+
+  // ─────────────────────────────────────────────
+  // TOGGLE
+  // ─────────────────────────────────────────────
+  function setView(v) {
+    const isAnnual = v === 'a';
+    const D = isAnnual ? ADATA : QDATA;
+    const labels = isAnnual ? AQ : QQ;
+
+    // Standard charts
+    registry.forEach(({ chart, key, isLine }) => {
+      chart.data.labels = labels;
+      const companies = ['airbnb','booking','expedia','tripcom'];
+      companies.forEach((co, i) => {
+        chart.data.datasets[i].data = D[key][co];
+      });
+      chart.update();
+    });
+
+    // Margin chart (computed)
+    cMargin.data.labels = labels;
+    ['airbnb','booking','expedia','tripcom'].forEach((co, i) => {
+      cMargin.data.datasets[i].data = margin(D.ebitda[co], D.revenue[co]);
+    });
+    cMargin.update();
+
+    // Intl chart
+    cIntl.data.labels = labels;
+    const intlCompanies = ['tripcom','expedia','booking','airbnb'];
+    intlCompanies.forEach((co, i) => {
+      cIntl.data.datasets[i].data = D.intlGrowth[co];
+    });
+    cIntl.update();
+
+    document.getElementById('btnQ').classList.toggle('active', !isAnnual);
+    document.getElementById('btnA').classList.toggle('active', isAnnual);
+  }
+
+  // ─────────────────────────────────────────────
+  // MAIN TAB SWITCHING
+  // ─────────────────────────────────────────────
+  const tabInited = {};
+  function switchTab(name, btn) {
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.main-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    btn.classList.add('active');
+    if (!tabInited[name]) { tabInited[name] = true; initCompTab(name); }
+  }
+
+  function initCompTab(name) {
+    if (name === 'airbnb')  initAirbnb();
+    if (name === 'booking') initBooking();
+    if (name === 'expedia') initExpedia();
+    if (name === 'tripcom') initTripcom();
+  }
+
+  const QQL = ["Q1'24","Q2'24","Q3'24","Q4'24","Q1'25","Q2'25","Q3'25","Q4'25"];
+  const AQL = ['2022','2023','2024','2025'];
+
+  function stackedBar(id, labels, datasets, yLabel) {
+    return new Chart(document.getElementById(id), {
+      type: 'bar',
+      plugins: [ChartDataLabels],
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode:'index', intersect:false },
+        scales: {
+          x: { stacked:true, grid:{ display:false }, ticks:{ font:{ size:11 } } },
+          y: { stacked:true, grid:{ color:'#F3F4F6' }, ticks:{ font:{ size:11 }, callback: v=>yLabel(v) } }
+        },
+        plugins: {
+          legend: { position:'top', labels:{ boxWidth:12, padding:14, font:{ size:11 } } },
+          tooltip: { backgroundColor:'#1A1D23', callbacks:{ label: ctx=> ctx.parsed.y != null ? ` ${ctx.dataset.label}: ${yLabel(ctx.parsed.y)}` : null } },
+          datalabels: {
+            display: ctx => {
+              const v = ctx.dataset.data[ctx.dataIndex];
+              if (v == null) return false;
+              const contributing = ctx.chart.data.datasets.filter(d => (d.data[ctx.dataIndex] ?? 0) > 0).length;
+              if (contributing < 2) return false;
+              const total = ctx.chart.data.datasets.reduce((s,d) => s + (d.data[ctx.dataIndex] ?? 0), 0);
+              return total > 0 && v / total > 0.06;
+            },
+            formatter: (value, ctx) => {
+              const total = ctx.chart.data.datasets.reduce((s,d) => s + (d.data[ctx.dataIndex] ?? 0), 0);
+              return Math.round(value / total * 100) + '%';
+            },
+            color: '#fff',
+            font: { size: 10, weight: '700' },
+            anchor: 'center',
+            align: 'center',
+          }
+        }
+      }
+    });
+  }
+
+  function simpleLine(id, labels, datasets, yLabel) {
+    return new Chart(document.getElementById(id), {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode:'index', intersect:false },
+        scales: {
+          x: { grid:{ display:false }, ticks:{ font:{ size:11 } } },
+          y: { grid:{ color:'#F3F4F6' }, ticks:{ font:{ size:11 }, callback: v=>yLabel(v) } }
+        },
+        plugins: {
+          legend: { position:'top', labels:{ boxWidth:12, padding:14, font:{ size:11 } } },
+          tooltip: { backgroundColor:'#1A1D23', callbacks:{ label: ctx=> ctx.parsed.y != null ? ` ${ctx.dataset.label}: ${yLabel(ctx.parsed.y)}` : null } }
+        }
+      }
+    });
+  }
+
+  function ds(label, data, color, fill) {
+    return { label, data, backgroundColor: color+'33', borderColor: color, borderWidth: 2.5, fill: fill||false, tension:0.4, pointBackgroundColor:color, pointRadius:4, pointHoverRadius:6, spanGaps:false };
+  }
+  function bds(label, data, color) {
+    return { label, data, backgroundColor: color+'CC', borderColor: color, borderWidth:1.5, borderRadius:3 };
+  }
+
+  // ── AIRBNB ──
+  function initAirbnb() {
+    const rev  = [2.14,2.75,3.73,2.48,2.27,3.10,4.10,2.80];
+    const gbv  = [23.1,21.2,20.1,17.6,24.5,23.5,22.9,20.4];
+    const nts  = [133.0,125.1,122.8,111.0,143.1,134.0,134.0,122.1];
+    const takeRate  = rev.map((r,i)=>+(r/gbv[i]*100).toFixed(1));
+    const revPerNt  = rev.map((r,i)=>+(r/nts[i]*1000).toFixed(1));
+    const adr  = [174,169,163,158,171,174,169,162];
+
+    simpleLine('ab_takeRate', QQL, [ds('Take Rate',takeRate,'#FF5A5F')], v=>`${v}%`);
+    stackedBar ('ab_adr',      QQL, [bds('ADR (USD)',adr,'#FF5A5F')],   v=>`$${v}`);
+    simpleLine ('ab_revPerNight', QQL, [ds('Rev/Night ($)',revPerNt,'#FF5A5F')], v=>`$${v}`);
+
+    stackedBar('ab_longTerm', AQL,
+      [bds('Long-term (28+ nights) %',[18,19,19,20],'#FF5A5F'), bds('Short-term %',[82,81,81,80],'rgba(255,90,95,0.3)')],
+      v=>`${v}%`);
+
+    new Chart(document.getElementById('ab_gbvRev'), {
+      type:'bar',
+      data:{ labels:QQL, datasets:[bds('GBV ($B)',gbv,'#4A7FCC'), bds('Revenue ($B)',rev,'#FF5A5F')] },
+      options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+        scales:{ x:{grid:{display:false},ticks:{font:{size:11}}}, y:{grid:{color:'#F3F4F6'},ticks:{font:{size:11},callback:v=>`$${v}B`}} },
+        plugins:{ legend:{position:'top',labels:{boxWidth:12,padding:14,font:{size:11}}}, tooltip:{backgroundColor:'#1A1D23'} } }
+    });
+  }
+
+  // ── BOOKING ──
+  function initBooking() {
+    const agency = [2.51,3.34,4.56,3.14,2.59,3.67,4.86,3.40,2.99];
+    const merch  = [1.58,2.11,2.88,1.98,1.87,2.65,3.51,2.46,2.16];
+    const adv    = [0.31,0.41,0.56,0.38,0.34,0.48,0.63,0.44,0.39];
+    const labels9 = [...QQL,"Q1'26"];
+
+    stackedBar('bk_revMix', labels9,
+      [bds('Agency',agency,'#4A7FCC'), bds('Merchant',merch,'#1E40AF'), bds('Advertising',adv,'#93C5FD')],
+      v=>`$${v}B`);
+
+    const total = agency.map((a,i)=>a+merch[i]+adv[i]);
+    stackedBar('bk_revShare', labels9,
+      [bds('Agency %',total.map((t,i)=>+(agency[i]/t*100).toFixed(1)),'#4A7FCC'),
+       bds('Merchant %',total.map((t,i)=>+(merch[i]/t*100).toFixed(1)),'#1E40AF'),
+       bds('Advertising %',total.map((t,i)=>+(adv[i]/t*100).toFixed(1)),'#93C5FD')],
+      v=>`${v}%`);
+
+    // Brand nights quarterly — apply brand ratios to reported totals
+    // Booking.com ~87%, Agoda ~10%, Priceline ~3%
+    const totalNts = [298,null,null,null,319,309,323,285,338];
+    const bkNts  = totalNts.map(v=>v!=null?+(v*0.87).toFixed(0):null);
+    const agNts  = totalNts.map(v=>v!=null?+(v*0.10).toFixed(0):null);
+    const plNts  = totalNts.map(v=>v!=null?+(v*0.03).toFixed(0):null);
+    stackedBar('bk_nightsByBrand', labels9,
+      [bds('Booking.com',bkNts,'#4A7FCC'), bds('Agoda',agNts,'#0EA5E9'), bds('Priceline',plNts,'#7DD3FC')],
+      v=>`${v}M`);
+
+    // Brand GBV — annual estimates
+    stackedBar('bk_gbvByBrand', ['2023','2024','2025'],
+      [bds('Booking.com',[131,144,162],'#4A7FCC'),
+       bds('Agoda',[14,16,18],'#0EA5E9'),
+       bds('Priceline',[5.6,6,6.1],'#7DD3FC')],
+      v=>`$${v}B`);
+
+    // Brand Y/Y growth — annual estimates
+    simpleLine('bk_brandGrowth', ['2023→2024','2024→2025'],
+      [ds('Booking.com',[10,9],'#4A7FCC'),
+       ds('Agoda',[10,13],'#0EA5E9'),
+       ds('Priceline',[0,2],'#7DD3FC')],
+      v=>`${v}%`);
+
+    // Geographic reach donut
+    new Chart(document.getElementById('bk_brandGeo'), {
+      type:'doughnut',
+      data:{ labels:['Europe / EMEA (Booking.com)','Asia-Pacific (Agoda + APAC)','Americas (Priceline + US)'],
+             datasets:[{ data:[58,28,14], backgroundColor:['#4A7FCC','#0EA5E9CC','#7DD3FCAA'],
+             borderColor:['#4A7FCC','#0EA5E9','#7DD3FC'], borderWidth:2, hoverOffset:8 }] },
+      options:{ responsive:true, maintainAspectRatio:false, cutout:'58%',
+        plugins:{ legend:{ position:'bottom', labels:{ boxWidth:12, padding:14, font:{size:11} } },
+          tooltip:{ backgroundColor:'#1A1D23', callbacks:{ label: ctx=>` ${ctx.label}: ${ctx.parsed}%` } } } }
+    });
+
+    // All reported quarterly nights — simple line
+    simpleLine('bk_allNights', labels9,
+      [ds('Total Room Nights',totalNts,'#4A7FCC')], v=>`${v}M`);
+  }
+
+  // ── EXPEDIA ──
+  function initExpedia() {
+    const b2c = [2.20,2.74,3.12,2.42,2.25,2.86,3.35,2.66];
+    const b2b = [0.70,0.86,0.98,0.76,0.75,0.96,1.12,0.89];
+    stackedBar('ex_b2cB2b', QQL,
+      [bds('B2C (Expedia, Vrbo, Hotels.com…)',b2c,'#00AF87'), bds('B2B (Expedia Partner Solutions)',b2b,'#065F46')],
+      v=>`$${v}B`);
+
+    // Vrbo vs Core nights — annual
+    stackedBar('ex_vrboNights', ['2024','2025'],
+      [bds('Vrbo nights (M)',[84,86],'#00AF87'), bds('Core brands nights (M)',[301,329],'#065F46')],
+      v=>`${v}M`);
+
+    // B2B Y/Y growth quarterly
+    const b2bGrowth = [null,null,null,null,7,12,14,17];
+    simpleLine('ex_b2bGrowth', QQL, [ds('B2B Revenue Y/Y %',b2bGrowth,'#00AF87')], v=>`${v}%`);
+
+    // GBV by brand — annual estimates
+    // Expedia.com+Hotels.com, B2B (EPS), Vrbo
+    stackedBar('ex_gbvByBrand', ['2023','2024','2025'],
+      [bds('Expedia.com + Hotels.com',[59,65,68],'#00AF87'),
+       bds('B2B — Expedia Partner Solutions',[22,30,36],'#065F46'),
+       bds('Vrbo',[16,14,14],'#34D399')],
+      v=>`$${v}B`);
+
+    // Revenue by brand — annual estimates
+    // Vrbo take rate ~9%, Expedia.com ~13%, B2B ~11%
+    stackedBar('ex_revByBrand', ['2023','2024','2025'],
+      [bds('Expedia.com + Hotels.com',[7.7,8.5,9.0],'#00AF87'),
+       bds('B2B — Expedia Partner Solutions',[2.5,3.3,3.7],'#065F46'),
+       bds('Vrbo',[1.4,1.4,1.4],'#34D399'),
+       bds('Other (Orbitz, Hotwire…)',[1.3,0.6,0.7],'#A7F3D0')],
+      v=>`$${v}B`);
+
+    // Vrbo vs Core brand nights Y/Y growth — annual estimates
+    simpleLine('ex_vrboGrowth', ['2023→2024','2024→2025'],
+      [ds('Core brands (Expedia.com + Hotels.com)',[8,12],'#00AF87'),
+       ds('Vrbo',[-7,2],'#34D399'),
+       ds('B2B (EPS)',[20,20],'#065F46')],
+      v=>`${v}%`);
+
+    // ── REGIONAL BREAKDOWN ──
+    const regYrs = ['2022','2023','2024','2025'];
+    const usca_rev  = [7.0, 7.7, 8.3, 8.9];
+    const latam_rev = [0.6, 0.7, 0.7, 0.7];
+    const emea_rev  = [2.8, 3.1, 3.3, 3.6];
+    const apac_rev  = [1.3, 1.4, 1.5, 1.6];
+
+    stackedBar('ex_revByRegion', regYrs,
+      [bds('US+Canada', usca_rev,  regColors.usca),
+       bds('LatAm',     latam_rev, regColors.latam),
+       bds('EMEA',      emea_rev,  regColors.emea),
+       bds('APAC',      apac_rev,  regColors.apac)],
+      v=>`$${v}B`);
+
+    stackedBar('ex_gbvByRegion', regYrs,
+      [bds('US+Canada',[51,54,55,59], regColors.usca),
+       bds('LatAm',    [ 4, 4, 4, 5], regColors.latam),
+       bds('EMEA',     [31,34,35,38], regColors.emea),
+       bds('APAC',     [ 9,12,17,18], regColors.apac)],
+      v=>`$${v}B`);
+
+    stackedBar('ex_nightsByRegion', ['2024','2025'],
+      [bds('US+Canada',[190,201], regColors.usca),
+       bds('LatAm',    [ 10, 11], regColors.latam),
+       bds('EMEA',     [135,150], regColors.emea),
+       bds('APAC',     [ 50, 53], regColors.apac)],
+      v=>`${v}M`);
+
+    simpleLine('ex_regionalGrowth', ['2022→2023','2023→2024','2024→2025'],
+      [ds('US+Canada',[10, 8, 7], regColors.usca),
+       ds('LatAm',    [17, 0, 7], regColors.latam),
+       ds('EMEA',     [11, 6, 9], regColors.emea),
+       ds('APAC',     [ 8, 7, 7], regColors.apac)],
+      v=>`${v}%`);
+
+    simpleLine('ex_gbvRegGrowth', ['2022→2023','2023→2024','2024→2025'],
+      [ds('US+Canada',[ 6, 2, 7], regColors.usca),
+       ds('LatAm',    [ 0, 0, 7], regColors.latam),
+       ds('EMEA',     [10, 3, 9], regColors.emea),
+       ds('APAC',     [33,42, 6], regColors.apac)],
+      v=>`${v}%`);
+
+    // Regional share %
+    const regTotals = regYrs.map((_,i) => usca_rev[i]+latam_rev[i]+emea_rev[i]+apac_rev[i]);
+    stackedBar('ex_regionShare', regYrs,
+      [bds('US+Canada %',regTotals.map((t,i)=>+(usca_rev[i]/t*100).toFixed(1)),  regColors.usca),
+       bds('LatAm %',    regTotals.map((t,i)=>+(latam_rev[i]/t*100).toFixed(1)), regColors.latam),
+       bds('EMEA %',     regTotals.map((t,i)=>+(emea_rev[i]/t*100).toFixed(1)),  regColors.emea),
+       bds('APAC %',     regTotals.map((t,i)=>+(apac_rev[i]/t*100).toFixed(1)),  regColors.apac)],
+      v=>`${v}%`);
+  }
+
+  // ── TRIP.COM ──
+  function initTripcom() {
+    const acc   = [0.54,0.63,0.81,0.60,0.65,0.74,0.91,0.77];
+    const trans = [0.67,0.76,0.94,0.71,0.80,0.88,1.09,0.93];
+    const pkg   = [0.19,0.23,0.37,0.24,0.25,0.30,0.42,0.31];
+    const other = [0.20,0.18,0.18,0.15,0.20,0.18,0.18,0.20];
+    stackedBar('tc_segments', QQL,
+      [bds('Accommodation',acc,'#7C3AED'), bds('Transportation',trans,'#5B21B6'), bds('Packaged Tours',pkg,'#A78BFA'), bds('Corporate & Other',other,'#DDD6FE')],
+      v=>`$${v}B`);
+
+    stackedBar('tc_intlDom', ['2023','2024','2025'],
+      [bds('China Domestic (Ctrip)',[3.45,4.07,4.67],'#7C3AED'), bds('International (Trip.com + Skyscanner)',[2.82,3.33,4.14],'#A78BFA')],
+      v=>`$${v}B`);
+  }
+
+  // ─────────────────────────────────────────────
+  // TABLE TABS
+  // ─────────────────────────────────────────────
+  function showTable(tab) {
+    document.querySelectorAll('.table-view').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.table-tab').forEach(el => el.classList.remove('active'));
+    document.getElementById('tbl-' + tab).classList.add('active');
+    event.target.classList.add('active');
+  }
+</script>
+</body>
+</html>
